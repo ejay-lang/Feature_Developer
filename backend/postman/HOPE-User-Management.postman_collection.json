@@ -1,0 +1,482 @@
+{
+  "info": {
+    "name": "HOPE System - User Management",
+    "description": "User-management API checks. Sign in through the authentication collection first so Postman has a session cookie. Set actorRole and superadminUserId for authorization tests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:4000"
+    },
+    {
+      "key": "actorRole",
+      "value": "superadmin"
+    },
+    {
+      "key": "superadminUserId",
+      "value": "1"
+    },
+    {
+      "key": "userId",
+      "value": ""
+    },
+    {
+      "key": "testEmail",
+      "value": "managed.user@example.com"
+    }
+  ],
+  "item": [
+    {
+      "name": "List users - paginated (200)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns a paginated user list', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.users).to.be.an('array');",
+              "  pm.expect(body.pagination.page).to.eql(1);",
+              "  pm.expect(body.pagination.pageSize).to.eql(20);",
+              "  if (pm.collectionVariables.get('actorRole') === 'admin') {",
+              "    pm.expect(body.users.some(function (user) { return user.role === 'superadmin'; })).to.eql(false);",
+              "    pm.expect(body.users.some(function (user) { return user.role === 'admin'; })).to.eql(false);",
+              "  }",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/users?page=1&pageSize=20",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users"
+          ],
+          "query": [
+            {
+              "key": "page",
+              "value": "1"
+            },
+            {
+              "key": "pageSize",
+              "value": "20"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Search users (200)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('search returns only matching regular users for Admin', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  if (pm.collectionVariables.get('actorRole') === 'admin') {",
+              "    pm.expect(body.users.every(function (user) { return user.role === 'user'; })).to.eql(true);",
+              "  }",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/users?search=example&page=1&pageSize=10",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users"
+          ],
+          "query": [
+            {
+              "key": "search",
+              "value": "example"
+            },
+            {
+              "key": "page",
+              "value": "1"
+            },
+            {
+              "key": "pageSize",
+              "value": "10"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Add regular user (201)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('creates an active user requiring first-login password change', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.user.role).to.eql('user');",
+              "  pm.expect(body.user.status).to.eql('active');",
+              "  pm.expect(body.user.mustChangePassword).to.eql(true);",
+              "  pm.expect(body.user).not.to.have.property('passwordHash');",
+              "  pm.collectionVariables.set('userId', body.user.id);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"firstName\": \"Managed\",\n  \"lastName\": \"User\",\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"TemporarySecurePass123!\",\n  \"role\": \"user\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/users",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Get user by ID (200)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns user public fields only', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const user = pm.response.json().user;",
+              "  pm.expect(user.id).to.eql(pm.collectionVariables.get('userId'));",
+              "  pm.expect(user).not.to.have.property('passwordHash');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/users/{{userId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "{{userId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Edit user (200)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('updates user profile', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().user.firstName).to.eql('Updated');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"firstName\": \"Updated\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/users/{{userId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "{{userId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Block user (200)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('blocks the target account', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().user.status).to.eql('blocked');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{baseUrl}}/api/users/{{userId}}/block",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "{{userId}}",
+            "block"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Unblock user (200)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('restores the target account', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().user.status).to.eql('active');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{baseUrl}}/api/users/{{userId}}/unblock",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "{{userId}}",
+            "unblock"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Admin cannot access Superadmin (403)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('denies Admin access to a Superadmin record', function () {",
+              "  pm.response.to.have.status(403);",
+              "  pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/users/{{superadminUserId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "{{superadminUserId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Admin cannot edit Superadmin (403)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('denies editing a Superadmin record', function () {",
+              "  pm.response.to.have.status(403);",
+              "  pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"firstName\": \"Unauthorized change\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/users/{{superadminUserId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "{{superadminUserId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Admin cannot block Superadmin (403)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('denies blocking a Superadmin record', function () {",
+              "  pm.response.to.have.status(403);",
+              "  pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{baseUrl}}/api/users/{{superadminUserId}}/block",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "{{superadminUserId}}",
+            "block"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Invalid pagination (400)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('rejects invalid page size', function () {",
+              "  pm.response.to.have.status(400);",
+              "  pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/users?page=0&pageSize=1000",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users"
+          ],
+          "query": [
+            {
+              "key": "page",
+              "value": "0"
+            },
+            {
+              "key": "pageSize",
+              "value": "1000"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "User role has no access (403)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('denies regular User role', function () {",
+              "  pm.response.to.have.status(403);",
+              "  pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/users",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users"
+          ]
+        }
+      }
+    }
+  ]
+}
